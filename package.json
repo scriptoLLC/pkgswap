@@ -1,0 +1,22 @@
+{
+  "name": "pkgswap",
+  "version": "1.0.0",
+  "description": "A package.json manager for npm 5",
+  "main": "pkgswap.js",
+  "bin": "cli.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "npm",
+    "package manager",
+    "packages"
+  ],
+  "author": "Todd Kennedy <todd@selfassembled.org>",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "find-root": "^1.1.0",
+    "minimist": "^1.2.0",
+    "sanitize-filename": "^1.6.1"
+  }
+}
