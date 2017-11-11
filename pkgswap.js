@@ -11,13 +11,11 @@ const debug = require('debug')('pkgswap')
 const parse = require('fast-json-parse')
 const stringify = require('fast-safe-stringify')
 
+const depKeys = require('./dep-keys')
+const buildDeps = require('./build-deps')
+const skel = require('./skel')
+
 const pkgNS = 'pkgswap'
-
-const depKeys = ['bundledDependencies', 'peerDependencies', 'devDependencies', 'optionalDependencies', 'dependencies']
-
-function skel () {
-  return {blacklist: []}
-}
 
 function PkgSwap (wd) {
   if (!(this instanceof PkgSwap)) return new PkgSwap(wd)
@@ -72,7 +70,10 @@ PkgSwap.prototype.create = function (name, opts, cb) {
     return cb(err)
   }
 
-  const dest = opts.dest || this.makeConfigName(name)
+  // need a way to find user-named files before we enable this
+  // const dest = opts.dest || this.makeConfigName(name)
+  const dest = this.makeConfigName(name)
+
   const tasks = [
     (done) => this._copy(name, this._master, dest, opts, done)
   ]
@@ -99,26 +100,40 @@ PkgSwap.prototype.reconcileMaster = function (dest, cb) {
   parallel({
     source: (done) => this._readPackage(dest, done),
     master: (done) => this._readPackage(this._master, done)
-  }, (err, res) => {
+  }, (err, {source, master}) => {
     if (err) return cb(err)
 
-    const filteredSource = this._filterPackages(res.source[pkgNS].blacklist, res.source)
-    const masterPackages = this._buildDeps(res.master)
-    const sourcePackages = this._buildDeps(filteredSource)
+    const sourceBlacklist = source[pkgNS].blacklist
+    const sourcePackages = buildDeps(source)
 
-    // find deps in filtered source that don't exist or aren't at the same version
-    // as in master and copy them into master
+    // add blacklisted packages back to correct dependency sections
+    // so they don't get inadvertantly removed
+    sourceBlacklist.forEach((pkgObj) => {
+      pkgObj.sources.forEach((depKey) => {
+        sourcePackages[depKey].push(pkgObj.name)
+      })
+    })
+
+    // find all packages that are in the source package
+    // that aren't in the master package, and then check
+    // the semver data for each one that is to see if it needs to update
+    // but don't re-add a blacklisted package that was removed
+    // from the master!
     depKeys.forEach((depKey) => {
-      sourcePackages[depKey].forEach((dep) => {
-        if (!masterPackages[depKey].includes(dep)) {
-          res.master[depKey][dep] = filteredSource[depKey][dep]
-        } else if (res.master[depKey][dep] !== filteredSource[depKey][dep]) {
-          res.master[depKey][dep] = filteredSource[depKey][dep]
+      sourcePackages[depKey].forEach((pkg) => {
+        const sourcePkg = source[depKey][pkg]
+        const masterDeps = master[depKey]
+        if (sourcePkg) {
+          if (!masterDeps.hasOwnProperty(pkg)) {
+            masterDeps[pkg] = sourcePkg
+          } else if (masterDeps[pkg] !== sourcePkg) {
+            masterDeps[pkg] = sourcePkg
+          }
         }
       })
     })
 
-    fs.writeFile(this._master, stringify(res.master), 'utf', cb)
+    fs.writeFile(this._master, stringify(master), 'utf', cb)
   })
 }
 
@@ -128,7 +143,7 @@ PkgSwap.prototype.blacklist = function (pkgs, dest, opts, cb) {
     opts = {}
   }
 
-  pkgs = Array.isArray(pkgs) ? pkgs : [pkgs]
+  pkgs = (Array.isArray(pkgs) ? pkgs : [pkgs]).map((pkg) => ({name: pkg}))
 
   waterfall([
     (done) => this._readPackage(dest, cb),
@@ -137,12 +152,8 @@ PkgSwap.prototype.blacklist = function (pkgs, dest, opts, cb) {
   ], cb)
 
   function remove (pkgFile, done) {
-    if (!pkgFile.hasOwnProperty(pkgNS)) {
+    if (!pkgFile.hasOwnProperty(pkgNS) || !pkgFile[pkgNS].hasOwnPropery('blacklist')) {
       pkgFile[pkgNS] = skel()
-    }
-
-    if (!Array.isArray(pkgFile.blacklist)) {
-      pkgFile[pkgNS].blacklist = []
     }
 
     if (opts.source === 'self') {
@@ -150,31 +161,26 @@ PkgSwap.prototype.blacklist = function (pkgs, dest, opts, cb) {
     }
 
     pkgFile = this._filterPackages(pkgs, pkgFile)
-    pkgFile[pkgNS].blacklist = Array.from(new Set(pkgFile[pkgNS].blacklist.concat(pkgs)))
     done()
   }
 }
 
 PkgSwap.prototype._filterPackages = function (blacklist, packageData) {
-  const deps = this._buildDeps(packageData)
-
   blacklist.forEach((pkg) => {
-    depKeys.forEach((dep) => {
-      if (deps[dep].includes(pkg)) {
-        delete packageData[dep][pkg]
+    const sources = (pkg.sources || depKeys).slice(0)
+    const name = pkg.name
+    pkg.sources.length = 0
+    sources.forEach((source) => {
+      if (packageData.hasOwnProperty(name)) {
+        delete packageData.hasOwnPropery(name)
+        pkg.sources.push(source)
       }
     })
   })
 
-  return packageData
-}
+  packageData[pkgNS].blacklist = blacklist
 
-PkgSwap.prototype._buildDeps = function (packageData) {
-  const deps = {}
-  depKeys.forEach((key) => {
-    deps[key] = Object.keys(packageData[key] || {})
-  })
-  return deps
+  return packageData
 }
 
 PkgSwap.prototype._readPackage = function (dest, cb) {

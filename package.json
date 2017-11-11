@@ -12,6 +12,10 @@
     "package manager",
     "packages"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/scriptollc/pkgswap"
+  },
   "author": "Todd Kennedy <todd@selfassembled.org>",
   "license": "Apache-2.0",
   "dependencies": {
