@@ -10,3 +10,4 @@ sauce_connect.log
 .sauce-credentials.json
 .zuulrc
 coverage.json
+.pkgswap.*json
