@@ -2,9 +2,22 @@ const fs = require('fs')
 const path = require('path')
 
 const series = require('run-series')
+const waterfall = require('run-waterfall')
+const parallel = require('run-parallel')
+
 const findRoot = require('find-root')
 const sanitize = require('sanitize-filename')
 const debug = require('debug')('pkgswap')
+const parse = require('fast-json-parse')
+const stringify = require('fast-safe-stringify')
+
+const pkgNS = 'pkgswap'
+
+const depKeys = ['bundledDependencies', 'peerDependencies', 'devDependencies', 'optionalDependencies', 'dependencies']
+
+function skel () {
+  return {blacklist: []}
+}
 
 function PkgSwap (wd) {
   if (!(this instanceof PkgSwap)) return new PkgSwap(wd)
@@ -60,7 +73,15 @@ PkgSwap.prototype.create = function (name, opts, cb) {
   }
 
   const dest = opts.dest || this.makeConfigName(name)
-  this._copy(name, this._master, dest, opts, cb)
+  const tasks = [
+    (done) => this._copy(name, this._master, dest, opts, done)
+  ]
+
+  if (typeof opts.blacklist === 'string' || Array.isArray(opts.blacklist)) {
+    tasks.push((done) => this.blacklist(opts.blacklist, dest, done))
+  }
+
+  series(tasks, cb)
 }
 
 PkgSwap.prototype.enable = function (dest, cb) {
@@ -74,22 +95,102 @@ PkgSwap.prototype.disable = function (cb) {
   this.enable(this._master, cb)
 }
 
-PkgSwap.prototype.blacklist = function (pkgs, cb) {
+PkgSwap.prototype.reconcileMaster = function (dest, cb) {
+  parallel({
+    source: (done) => this._readPackage(dest, done),
+    master: (done) => this._readPackage(this._master, done)
+  }, (err, res) => {
+    if (err) return cb(err)
+
+    const filteredSource = this._filterPackages(res.source[pkgNS].blacklist, res.source)
+    const masterPackages = this._buildDeps(res.master)
+    const sourcePackages = this._buildDeps(filteredSource)
+
+    // find deps in filtered source that don't exist or aren't at the same version
+    // as in master and copy them into master
+    depKeys.forEach((depKey) => {
+      sourcePackages[depKey].forEach((dep) => {
+        if (!masterPackages[depKey].includes(dep)) {
+          res.master[depKey][dep] = filteredSource[depKey][dep]
+        } else if (res.master[depKey][dep] !== filteredSource[depKey][dep]) {
+          res.master[depKey][dep] = filteredSource[depKey][dep]
+        }
+      })
+    })
+
+    fs.writeFile(this._master, stringify(res.master), 'utf', cb)
+  })
+}
+
+PkgSwap.prototype.blacklist = function (pkgs, dest, opts, cb) {
+  if (typeof opts === 'function') {
+    cb = opts
+    opts = {}
+  }
+
   pkgs = Array.isArray(pkgs) ? pkgs : [pkgs]
-  this._removePackages(pkgs, cb)
+
+  waterfall([
+    (done) => this._readPackage(dest, cb),
+    (pkgFile, done) => remove(pkgFile, done),
+    (pkgFile, done) => fs.writeFile(dest, stringify(pkgFile), 'utf8', done)
+  ], cb)
+
+  function remove (pkgFile, done) {
+    if (!pkgFile.hasOwnProperty(pkgNS)) {
+      pkgFile[pkgNS] = skel()
+    }
+
+    if (!Array.isArray(pkgFile.blacklist)) {
+      pkgFile[pkgNS].blacklist = []
+    }
+
+    if (opts.source === 'self') {
+      pkgs = pkgFile[pkgNS].blacklist
+    }
+
+    pkgFile = this._filterPackages(pkgs, pkgFile)
+    pkgFile[pkgNS].blacklist = Array.from(new Set(pkgFile[pkgNS].blacklist.concat(pkgs)))
+    done()
+  }
 }
 
-PkgSwap.prototype.reconcileMaster = function () {
-  // load blacklist for namespace
-  // load master
-  // load namespace
-  // copy namespace not in blacklist to master
+PkgSwap.prototype._filterPackages = function (blacklist, packageData) {
+  const deps = this._buildDeps(packageData)
+
+  blacklist.forEach((pkg) => {
+    depKeys.forEach((dep) => {
+      if (deps[dep].includes(pkg)) {
+        delete packageData[dep][pkg]
+      }
+    })
+  })
+
+  return packageData
 }
 
-PkgSwap.prototype._removePackages = function (pkgs, cb) {
-  // remove from namespace
-  // add to blacklist
-  // run npm install
+PkgSwap.prototype._buildDeps = function (packageData) {
+  const deps = {}
+  depKeys.forEach((key) => {
+    deps[key] = Object.keys(packageData[key] || {})
+  })
+  return deps
+}
+
+PkgSwap.prototype._readPackage = function (dest, cb) {
+  waterfall([
+    (done) => fs.readFile(dest, 'utf8', done),
+    parsePkg
+  ], cb)
+
+  function parsePkg (pkgData, done) {
+    const res = parse(pkgData)
+
+    if (res.err) {
+      return done(res.error)
+    }
+    done(null, res.value || {})
+  }
 }
 
 PkgSwap.prototype._opDone = function (err, cb) {
