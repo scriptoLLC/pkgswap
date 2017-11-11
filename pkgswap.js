@@ -74,6 +74,24 @@ PkgSwap.prototype.disable = function (cb) {
   this.enable(this._master, cb)
 }
 
+PkgSwap.prototype.blacklist = function (pkgs, cb) {
+  pkgs = Array.isArray(pkgs) ? pkgs : [pkgs]
+  this._removePackages(pkgs, cb)
+}
+
+PkgSwap.prototype.reconcileMaster = function () {
+  // load blacklist for namespace
+  // load master
+  // load namespace
+  // copy namespace not in blacklist to master
+}
+
+PkgSwap.prototype._removePackages = function (pkgs, cb) {
+  // remove from namespace
+  // add to blacklist
+  // run npm install
+}
+
 PkgSwap.prototype._opDone = function (err, cb) {
   if (err) {
     this._log('error', err)
