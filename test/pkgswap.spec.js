@@ -90,6 +90,16 @@ test('pkgswap init', (t) => {
       })
     })
 
+    t.test('symlink points to not pkgswap', (t) => {
+      const wd = path.join(fixturePath, 'no-init-symlink')
+      const pkg = new PkgSwap(wd)
+      pkg.init((err) => {
+        t.ok(err, 'got error')
+        t.equal(err.message, 'ENOENT: no such file or directory, stat \'/Users/todd/src/pkgswap/test/data/no-init-symlink/.pkgswap.package.json\'')
+        t.end()
+      })
+    })
+
     t.end()
   })
 })
