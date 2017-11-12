@@ -15,6 +15,7 @@ const buildDeps = require('./build-deps')
 const skel = require('./skel')
 const filterPackages = require('./filter-package')
 const readPackage = require('./read-package')
+const exists = require('./exists')
 
 const pkgNS = 'pkgswap'
 
@@ -48,16 +49,7 @@ PkgSwap.prototype.init = function (opts, cb) {
   }
 
   if (this._initialized) {
-    return this.disable((err) => {
-      if (err) return cb(err)
-      const linked = fs.readlinkSync(this._package)
-      if (linked !== this._master) {
-        const err = new Error(`package.json is already a symlink pointing to ${linked}. Refusing to change`)
-        err.level = 'fatal'
-        return cb(err)
-      }
-      cb()
-    })
+    return this.disable(cb)
   }
 
   this._copy('Main package.json', this._package, this._master, {enable: true}, cb)
@@ -95,6 +87,7 @@ PkgSwap.prototype.create = function (name, opts, cb) {
 
 PkgSwap.prototype.enable = function (dest, cb) {
   series([
+    (done) => exists(dest, done),
     (done) => this._removePackage(done),
     (done) => this._makeLink(dest, done)
   ], cb)
