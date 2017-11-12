@@ -8,12 +8,13 @@ const parallel = require('run-parallel')
 const findRoot = require('find-root')
 const sanitize = require('sanitize-filename')
 const debug = require('debug')('pkgswap')
-const parse = require('fast-json-parse')
 const stringify = require('fast-safe-stringify')
 
 const depKeys = require('./dep-keys')
 const buildDeps = require('./build-deps')
 const skel = require('./skel')
+const filterPackages = require('./filter-package')
+const readPackage = require('./read-package')
 
 const pkgNS = 'pkgswap'
 
@@ -98,8 +99,8 @@ PkgSwap.prototype.disable = function (cb) {
 
 PkgSwap.prototype.reconcileMaster = function (dest, cb) {
   parallel({
-    source: (done) => this._readPackage(dest, done),
-    master: (done) => this._readPackage(this._master, done)
+    source: (done) => readPackage(dest, done),
+    master: (done) => readPackage(this._master, done)
   }, (err, {source, master}) => {
     if (err) return cb(err)
 
@@ -138,6 +139,11 @@ PkgSwap.prototype.reconcileMaster = function (dest, cb) {
 }
 
 PkgSwap.prototype.blacklist = function (pkgs, dest, opts, cb) {
+  if (dest === this._master) {
+    const err = new Error('Cannot blacklist in the master file')
+    return cb(err)
+  }
+
   if (typeof opts === 'function') {
     cb = opts
     opts = {}
@@ -146,9 +152,9 @@ PkgSwap.prototype.blacklist = function (pkgs, dest, opts, cb) {
   pkgs = (Array.isArray(pkgs) ? pkgs : [pkgs]).map((pkg) => ({name: pkg}))
 
   waterfall([
-    (done) => this._readPackage(dest, cb),
+    (done) => readPackage(dest, done),
     (pkgFile, done) => remove(pkgFile, done),
-    (pkgFile, done) => fs.writeFile(dest, stringify(pkgFile), 'utf8', done)
+    (packageData, done) => fs.writeFile(dest, stringify(packageData), 'utf8', done)
   ], cb)
 
   function remove (pkgFile, done) {
@@ -160,50 +166,38 @@ PkgSwap.prototype.blacklist = function (pkgs, dest, opts, cb) {
       pkgs = pkgFile[pkgNS].blacklist
     }
 
-    pkgFile = this._filterPackages(pkgs, pkgFile)
-    done()
+    const [blacklist, packageData] = filterPackages(pkgs, pkgFile)
+    packageData[pkgNS].blacklist = blacklist
+    done(null, packageData)
   }
 }
 
-PkgSwap.prototype._filterPackages = function (blacklist, packageData) {
-  blacklist.forEach((pkg) => {
-    const sources = (pkg.sources || depKeys).slice(0)
-    const name = pkg.name
-    pkg.sources.length = 0
-    sources.forEach((source) => {
-      if (packageData.hasOwnProperty(name)) {
-        delete packageData.hasOwnPropery(name)
-        pkg.sources.push(source)
-      }
-    })
-  })
+PkgSwap.prototype.unblacklist = function (pkgs, dest, opts, cb) {
+  if (dest === this._master) {
+    const err = new Error('Cannot blacklist in the master file')
+    return cb(err)
+  }
 
-  packageData[pkgNS].blacklist = blacklist
+  if (typeof opts === 'function') {
+    cb = opts
+    opts = {}
+  }
 
-  return packageData
-}
+  pkgs = Array.isArray(pkgs) ? pkgs : [pkgs]
 
-PkgSwap.prototype._readPackage = function (dest, cb) {
   waterfall([
-    (done) => fs.readFile(dest, 'utf8', done),
-    parsePkg
+    (done) => readPackage(dest, done),
+    (pkgData, done) => remove(pkgData, done),
+    (pkgData, done) => fs.writeFile(dest, stringify(pkgData), 'utf8', done)
   ], cb)
 
-  function parsePkg (pkgData, done) {
-    const res = parse(pkgData)
-
-    if (res.err) {
-      return done(res.error)
-    }
-    done(null, res.value || {})
+  function remove (pkgData, done) {
+    const blacklist = pkgData[pkgNS].blacklist.filter((pkg) => {
+      return !pkgs.includes(pkg.name)
+    })
+    pkgData[pkgNS].blacklist = blacklist
+    done(null, pkgData)
   }
-}
-
-PkgSwap.prototype._opDone = function (err, cb) {
-  if (err) {
-    this._log('error', err)
-  }
-  cb && cb(err)
 }
 
 PkgSwap.prototype._copy = function (name, src, dest, opts, cb) {

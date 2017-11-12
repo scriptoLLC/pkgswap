@@ -1,7 +1,5 @@
-const buildDeps = require('./build-deps')
-
 function skel () {
-  return {blacklist: buildDeps({})}
+  return {blacklist: []}
 }
 
 module.exports = skel

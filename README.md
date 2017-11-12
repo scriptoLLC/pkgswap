@@ -117,7 +117,7 @@ when the last workspace was enabled.
 
 #### PkgSwap#blacklist(pkgs:string || array(string), dest:string, cb:function):undefined
 Remove modules from a workspace's dependencies lists and add them to a blacklist
-for that workspace.
+for that workspace. You may not blacklist in the master package.json.
 
 The dependencies list will be filtered each time that this workspace is enabled
 ensuring that the modules listed in the blacklist do not appear on any of the
@@ -134,6 +134,14 @@ the CLI tool) will do this for you.
 * `dest:string` - the filename of the workspace to update the blacklist for
 * `cb:function` - will be called when the packages have been blacklisted
 
+#### PkgSwap#unblacklist(pkgs:string || array(string), dest:string, cb:function):undefined
+Remove modules from a workspace's blacklist.  Same caveats as for blacklist apply,
+but it just works in reverse!
+
+* `pkgs:string || array(string)` - a package or list of packages to unblacklist
+* `dest:string` - the filename of the workspace to update the blacklist for
+* `cb:function` - will be called then the blacklist has been updated
+
 #### PkgSwap#reconcileMaster (dest:string, cb:function):undefined
 Update the master package.json with the changes from a workspace, ignoring the
 blacklisted modules.
@@ -147,6 +155,21 @@ the workspaces's blacklist will be kept in the master package.json file.
 
 * `dest:string` - the source file for the blacklist
 * `cb:function` - will be called when the master package.json has been reconciled
+
+#### Blacklisted packages
+
+The blacklist is stored in the workspace files as the following structure:
+
+```json
+{
+  "pkgswap": {
+    "blacklist": [{
+      name: 'pkgName',
+      sources: ['devDependencies', 'peerDependencies']
+    }]
+  }
+}
+```
 
 ## Licence
 Copyright © 2017 Scripto, LLC. All rights reserved.
