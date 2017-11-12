@@ -21,7 +21,7 @@ const pkgNS = 'pkgswap'
 function PkgSwap (wd) {
   if (!(this instanceof PkgSwap)) return new PkgSwap(wd)
 
-  this._packageRoot = findRoot(wd || process.cwd())
+  this._packageRoot = findRoot(wd || process.cwd()) || '/'
   this._master = path.join(this._packageRoot, '.pkgswap.package.json')
   this._package = path.join(this._packageRoot, 'package.json')
   this._initialized = false
@@ -34,7 +34,8 @@ function PkgSwap (wd) {
     }
     debug(`${this._package} is not a symlink`)
   } catch (err) {
-    this._initialized = false
+    debug(`No package.json found ${wd} or any of it's parent directories`)
+    throw err
   }
 }
 
@@ -46,14 +47,20 @@ PkgSwap.prototype.init = function (opts, cb) {
     opts = {}
   }
 
-  if (this._initialized && !opts.force) {
-    const linked = fs.readlinkSync(this._package)
-    const err = new Error(`package.json is already a symlink pointing to ${linked}, you may already have initialized this project`)
-    err.level = 'fatal'
-    return cb(err)
+  if (this._initialized) {
+    return this.disable((err) => {
+      if (err) return cb(err)
+      const linked = fs.readlinkSync(this._package)
+      if (linked !== this._master) {
+        const err = new Error(`package.json is already a symlink pointing to ${linked}. Refusing to change`)
+        err.level = 'fatal'
+        return cb(err)
+      }
+      cb()
+    })
   }
 
-  this._copy('Main package.json', this._package, this._master, {force: true, enable: true}, cb)
+  this._copy('Main package.json', this._package, this._master, {enable: true}, cb)
 }
 
 // opts
@@ -116,8 +123,7 @@ PkgSwap.prototype.reconcileMaster = function (dest, cb) {
     })
 
     // find all packages that are in the source package
-    // that aren't in the master package, and then check
-    // the semver data for each one that is to see if it needs to update
+    // that aren't in the master package, and then check // the semver data for each one that is to see if it needs to update
     // but don't re-add a blacklisted package that was removed
     // from the master!
     depKeys.forEach((depKey) => {
