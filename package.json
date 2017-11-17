@@ -27,6 +27,7 @@
     "fast-safe-stringify": "^1.2.1",
     "find-root": "^1.1.0",
     "minimist": "^1.2.0",
+    "rc": "^1.2.2",
     "run-parallel": "^1.1.6",
     "run-series": "^1.1.4",
     "run-waterfall": "^1.1.3",

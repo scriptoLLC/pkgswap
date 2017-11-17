@@ -104,6 +104,24 @@ test('pkgswap init', (t) => {
   })
 })
 
+test('pkgswap create', (t) => {
+  setup(() => {
+    t.test('no init', (t) => {
+      const wd = path.join(fixturePath, 'no-init')
+      const pkg = new PkgSwap(wd)
+      pkg.create('test', (err) => {
+        t.ok(err)
+        t.equal(err.message, 'You must initialize this project first')
+        t.end()
+      })
+    })
+
+    t.test('
+
+    t.end()
+  })
+})
+
 test('teardown', (t) => {
   teardown(() => t.end())
 })

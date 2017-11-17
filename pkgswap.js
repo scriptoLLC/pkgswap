@@ -5,10 +5,11 @@ const series = require('run-series')
 const waterfall = require('run-waterfall')
 const parallel = require('run-parallel')
 
+const parse = require('fast-json-parse')
 const findRoot = require('find-root')
 const sanitize = require('sanitize-filename')
-const debug = require('debug')('pkgswap')
 const stringify = require('fast-safe-stringify')
+const debug = require('debug')('pkgswap')
 
 const depKeys = require('./dep-keys')
 const buildDeps = require('./build-deps')
@@ -18,6 +19,7 @@ const readPackage = require('./read-package')
 const exists = require('./exists')
 
 const pkgNS = 'pkgswap'
+const rc = '.pkgswaprc'
 
 function PkgSwap (wd) {
   if (!(this instanceof PkgSwap)) return new PkgSwap(wd)
@@ -25,7 +27,10 @@ function PkgSwap (wd) {
   this._packageRoot = findRoot(wd || process.cwd()) || '/'
   this._master = path.join(this._packageRoot, '.pkgswap.package.json')
   this._package = path.join(this._packageRoot, 'package.json')
+  this._rcFile = path.join(this._packageRoot, rc)
   this._initialized = false
+
+  this._readConfig()
 
   try {
     const stat = fs.lstatSync(this._package)
@@ -199,6 +204,11 @@ PkgSwap.prototype.unblacklist = function (pkgs, dest, opts, cb) {
   }
 }
 
+PkgSwap.prototype.makeConfigName = function (name) {
+  name = sanitize(name)
+  return path.join(this._packageRoot, `.pkgswap.${name}.json`)
+}
+
 PkgSwap.prototype._copy = function (name, src, dest, opts, cb) {
   series([
     (done) => exists(dest, opts, done),
@@ -271,9 +281,30 @@ PkgSwap.prototype._makeLink = function (dest, cb) {
   })
 }
 
-PkgSwap.prototype.makeConfigName = function (name) {
-  name = sanitize(name)
-  return path.join(this._packageRoot, `.pkgswap.${name}.json`)
+PkgSwap.prototype._loadConfig = function () {
+  let config = '{"workspaces": {}}'
+  try {
+    config = fs.readFileSync(this._rcFile, 'utf8')
+  } catch (err) {
+    if (err.code !== 'ENOENT') {
+      throw new Error(`Could not read configuration file: ${err.message}`)
+    }
+  }
+
+  const res = parse(config)
+  if (res.err) {
+    throw new Error(`Could not parse configuration file: ${res.err.message}`)
+  }
+
+  this._config = res.value
+}
+
+PkgSwap.prototype._saveConfig = function () {
+  try {
+    fs.writeFileSync(this._rcFile, stringify(this._config), 'utf8')
+  } catch (err) {
+    throw new Error(`Unable to save config file: ${err.message}`)
+  }
 }
 
 module.exports = PkgSwap
