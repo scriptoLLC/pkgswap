@@ -11,3 +11,4 @@ sauce_connect.log
 .zuulrc
 coverage.json
 .pkgswap.*json
+!test/**/.pkgswap.*json
