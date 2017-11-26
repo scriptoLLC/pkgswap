@@ -214,6 +214,9 @@ PkgSwap.prototype._copy = function (name, src, dest, opts, cb) {
       return cb(err)
     }
     debug(`Done copying ${src} to ${dest}`)
+    console.log('------------------------------------')
+    console.log('my opts', opts)
+    console.log('------------------------------------')
     if (opts.enable) {
       debug(`Enabling ${dest}`)
       return this.enable(dest, cb)

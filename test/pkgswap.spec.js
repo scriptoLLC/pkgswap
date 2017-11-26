@@ -109,8 +109,8 @@ test('pkgswap init', (t) => {
 })
 
 test('pkgswap create', (t) => {
-  setup(() => {
-    t.test('no init', (t) => {
+  t.test('no init', (t) => {
+    setup(() => {
       const wd = path.join(fixturePath, 'no-init')
       const pkg = new PkgSwap(wd)
       pkg.create('test', (err) => {
@@ -119,10 +119,54 @@ test('pkgswap create', (t) => {
         t.end()
       })
     })
-
-    t.test('', (t) => t.end())
-    t.end()
   })
+
+  t.test('has init, no blacklist, not enabled', (t) => {
+    setup(() => {
+      const wd = path.join(fixturePath, 'has-init')
+      const pkg = new PkgSwap(wd)
+      pkg.create('test', (err) => {
+        t.error(err, 'no error')
+        const testPkg = path.join(wd, '.pkgswap.test.json')
+        t.ok(fs.existsSync(testPkg), 'test package created')
+        t.ok(fs.existsSync(pkg._master), 'master file still exists')
+        t.equal(fs.readlinkSync(pkg._package), '.pkgswap.package.json')
+        t.end()
+      })
+    })
+  })
+
+  t.test('has init, no blacklist, enabled', (t) => {
+    setup(() => {
+      const wd = path.join(fixturePath, 'has-init')
+      const pkg = new PkgSwap(wd)
+      pkg.create('test', {enable: true}, (err) => {
+        t.error(err, 'no error')
+        const testPkg = path.join(wd, '.pkgswap.test.json')
+        t.ok(fs.existsSync(testPkg), 'test package created')
+        t.ok(fs.existsSync(pkg._master), 'master file still exists')
+        t.equal(fs.readlinkSync(pkg._package), path.join(wd, '.pkgswap.test.json'))
+        t.end()
+      })
+    })
+  })
+
+  t.test('has init, blacklist', (t) => {
+    setup(() => {
+      const wd = path.join(fixturePath, 'has-init')
+      const pkg = new PkgSwap(wd)
+      pkg.create('test', {name: 'foo'}, (err) => {
+        t.error(err, 'no error')
+        const testPkg = path.join(wd, '.pkgswap.test.json')
+        t.ok(fs.existsSync(testPkg), 'test package created')
+        const testPkgData = require(testPkg)
+        t.ok(testPkgData.hasOwnProperty('blacklist'))
+        t.end()
+      })
+    })
+  })
+
+  t.end()
 })
 
 test('teardown', (t) => {
