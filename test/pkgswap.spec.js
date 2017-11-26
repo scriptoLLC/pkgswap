@@ -35,6 +35,10 @@ test('new pkgswap', (t) => {
       const pkg = new PkgSwap()
       t.equal(pkg._packageRoot, path.resolve(__dirname, '..'), 'parent path')
       t.ok(!pkg._initialized, 'should not be initialized')
+      const pj = path.join(pkg._packageRoot, 'package.json')
+      const pjl = path.join(pkg._packageRoot, '.pkgswap.package.json')
+      fs.unlinkSync(pj)
+      fs.writeFileSync(pj, fs.readFileSync(pjl))
       t.end()
     })
 
@@ -95,7 +99,7 @@ test('pkgswap init', (t) => {
       const pkg = new PkgSwap(wd)
       pkg.init((err) => {
         t.ok(err, 'got error')
-        t.equal(err.message, 'ENOENT: no such file or directory, stat \'/Users/todd/src/pkgswap/test/data/no-init-symlink/.pkgswap.package.json\'')
+        t.ok(/ENOENT.*no-init-symlink/.test(err.message), 'has error')
         t.end()
       })
     })
@@ -116,8 +120,7 @@ test('pkgswap create', (t) => {
       })
     })
 
-    t.test('
-
+    t.test('', (t) => t.end())
     t.end()
   })
 })

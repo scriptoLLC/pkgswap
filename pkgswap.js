@@ -6,11 +6,11 @@ const waterfall = require('run-waterfall')
 const parallel = require('run-parallel')
 
 const parse = require('fast-json-parse')
-const findRoot = require('find-root')
 const sanitize = require('sanitize-filename')
 const stringify = require('fast-safe-stringify')
 const debug = require('debug')('pkgswap')
 
+const findRoot = require('./find-root')
 const depKeys = require('./dep-keys')
 const buildDeps = require('./build-deps')
 const skel = require('./skel')
@@ -19,7 +19,6 @@ const readPackage = require('./read-package')
 const exists = require('./exists')
 
 const pkgNS = 'pkgswap'
-const rc = '.pkgswaprc'
 
 function PkgSwap (wd) {
   if (!(this instanceof PkgSwap)) return new PkgSwap(wd)
@@ -27,10 +26,7 @@ function PkgSwap (wd) {
   this._packageRoot = findRoot(wd || process.cwd()) || '/'
   this._master = path.join(this._packageRoot, '.pkgswap.package.json')
   this._package = path.join(this._packageRoot, 'package.json')
-  this._rcFile = path.join(this._packageRoot, rc)
   this._initialized = false
-
-  this._readConfig()
 
   try {
     const stat = fs.lstatSync(this._package)
