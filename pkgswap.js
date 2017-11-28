@@ -46,14 +46,14 @@ function PkgSwap (wd) {
 PkgSwap.prototype.init = function (opts, cb) {
   if (typeof opts === 'function') {
     cb = opts
-    opts = {}
+    opts = {enable: true}
   }
 
   if (this._initialized) {
     return this.disable(cb)
   }
 
-  this._copy('Main package.json', this._package, this._master, {enable: true}, cb)
+  this._copy('Main package.json', this._package, this._master, opts, cb)
 }
 
 // opts
@@ -150,6 +150,7 @@ PkgSwap.prototype.blacklist = function (pkgs, dest, opts, cb) {
   }
 
   pkgs = (Array.isArray(pkgs) ? pkgs : [pkgs]).map((pkg) => ({name: pkg}))
+  debug('going to remove', stringify(pkgs))
 
   waterfall([
     (done) => readPackage(dest, done),
@@ -158,7 +159,9 @@ PkgSwap.prototype.blacklist = function (pkgs, dest, opts, cb) {
   ], cb)
 
   function remove (pkgFile, done) {
+    debug('read in source')
     if (!pkgFile.hasOwnProperty(pkgNS) || !pkgFile[pkgNS].hasOwnPropery('blacklist')) {
+      debug('source does not have a', pkgNS, 'key')
       pkgFile[pkgNS] = skel()
     }
 
@@ -168,6 +171,7 @@ PkgSwap.prototype.blacklist = function (pkgs, dest, opts, cb) {
 
     const [blacklist, packageData] = filterPackages(pkgs, pkgFile)
     packageData[pkgNS].blacklist = blacklist
+    debug('setting blacklist to', JSON.stringify(blacklist))
     done(null, packageData)
   }
 }
@@ -214,9 +218,6 @@ PkgSwap.prototype._copy = function (name, src, dest, opts, cb) {
       return cb(err)
     }
     debug(`Done copying ${src} to ${dest}`)
-    console.log('------------------------------------')
-    console.log('my opts', opts)
-    console.log('------------------------------------')
     if (opts.enable) {
       debug(`Enabling ${dest}`)
       return this.enable(dest, cb)

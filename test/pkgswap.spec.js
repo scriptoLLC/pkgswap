@@ -71,8 +71,32 @@ test('new pkgswap', (t) => {
 })
 
 test('pkgswap init', (t) => {
-  setup(() => {
-    t.test('already initialized, but nothing enabled', (t) => {
+  t.test('not initialized, auto-enable', (t) => {
+    setup(() => {
+      const wd = path.join(fixturePath, 'no-init')
+      const pkg = new PkgSwap(wd)
+      pkg.init((err) => {
+        t.error(err, 'no error')
+        t.ok(fs.readlinkSync(pkg._package).endsWith('.pkgswap.package.json'), 'linked and enabled')
+        t.end()
+      })
+    })
+  })
+
+  t.test('not initialized, do not enable', (t) => {
+    setup(() => {
+      const wd = path.join(fixturePath, 'no-init')
+      const pkg = new PkgSwap(wd)
+      pkg.init({enable: false}, (err) => {
+        t.error(err, 'no error')
+        t.ok(fs.existsSync(pkg._package), 'not linked and enabled')
+        t.end()
+      })
+    })
+  })
+
+  t.test('already initialized, but nothing enabled', (t) => {
+    setup(() => {
       const wd = path.join(fixturePath, 'has-init')
       const pkg = new PkgSwap(wd)
       pkg.init((err) => {
@@ -80,8 +104,10 @@ test('pkgswap init', (t) => {
         t.end()
       })
     })
+  })
 
-    t.test('already initialized, foo enabled', (t) => {
+  t.test('already initialized, foo enabled', (t) => {
+    setup(() => {
       const wd = path.join(fixturePath, 'has-init-enabled')
       const pkg = new PkgSwap(wd)
       const packageFile = path.join(wd, 'package.json')
@@ -93,8 +119,10 @@ test('pkgswap init', (t) => {
         t.end()
       })
     })
+  })
 
-    t.test('symlink points to not pkgswap', (t) => {
+  t.test('symlink points to not pkgswap', (t) => {
+    setup(() => {
       const wd = path.join(fixturePath, 'no-init-symlink')
       const pkg = new PkgSwap(wd)
       pkg.init((err) => {
@@ -103,9 +131,9 @@ test('pkgswap init', (t) => {
         t.end()
       })
     })
-
-    t.end()
   })
+
+  t.end()
 })
 
 test('pkgswap create', (t) => {
@@ -154,15 +182,30 @@ test('pkgswap create', (t) => {
   t.test('has init, blacklist', (t) => {
     setup(() => {
       const wd = path.join(fixturePath, 'has-init')
-      const pkg = new PkgSwap(wd)
-      pkg.create('test', {name: 'foo'}, (err) => {
+      const pkg = PkgSwap(wd)
+      pkg.create('test', {blacklist: 'foo'}, (err) => {
         t.error(err, 'no error')
         const testPkg = path.join(wd, '.pkgswap.test.json')
         t.ok(fs.existsSync(testPkg), 'test package created')
         const testPkgData = require(testPkg)
-        t.ok(testPkgData.hasOwnProperty('blacklist'))
+        t.ok(testPkgData.hasOwnProperty('pkgswap'))
+        t.ok(testPkgData.pkgswap.hasOwnProperty('blacklist'))
+        t.deepEqual(testPkgData.pkgswap.blacklist, [{name: 'foo'}])
         t.end()
       })
+    })
+  })
+
+  t.end()
+})
+
+test('pkgswap reconcile', (t) => {
+  t.test('reconcile against master', (t) => {
+    setup(() => {
+      const wd = path.join(fixturePath, 'reconcile-no-blacklist-no-new-packages')
+      const pkg = new PkgSwap(wd)
+      t.ok(pkg._initialized)
+      t.end()
     })
   })
 
