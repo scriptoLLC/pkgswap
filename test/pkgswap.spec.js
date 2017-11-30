@@ -199,6 +199,56 @@ test('pkgswap create', (t) => {
   t.end()
 })
 
+test('pkgswap disable', (t) => {
+  t.test('not enabled', (t) => {
+    setup(() => {
+      const wd = path.join(fixturePath, 'no-init')
+      const pkg = PkgSwap(wd)
+      pkg.disable((err) => {
+        t.error(err, 'no error disabling')
+        const stat = fs.lstatSync(path.join(wd, 'package.json'))
+        t.ok(!stat.isSymbolicLink())
+        t.ok(stat.isFile())
+        t.end()
+      })
+    })
+  })
+
+  t.test('enabled, but set to master', (t) => {
+    setup(() => {
+      const wd = path.join(fixturePath, 'has-init')
+      const pkg = PkgSwap(wd)
+      pkg.disable((err) => {
+        t.error(err, 'no error disabling')
+        const stat = fs.lstatSync(path.join(wd, 'package.json'))
+        t.ok(stat.isSymbolicLink())
+        const link = fs.readlinkSync(path.join(wd, 'package.json'))
+        const pointer = link.split(path.sep).slice(-1)[0]
+        t.equal(pointer, '.pkgswap.package.json', 'package pointed')
+        t.end()
+      })
+    })
+  })
+
+  t.test('works just fine', (t) => {
+    setup(() => {
+      const wd = path.join(fixturePath, 'has-init-enabled')
+      const pkg = PkgSwap(wd)
+      pkg.disable((err) => {
+        t.error(err, 'no error disabling')
+        const stat = fs.lstatSync(path.join(wd, 'package.json'))
+        t.ok(stat.isSymbolicLink())
+        const link = fs.readlinkSync(path.join(wd, 'package.json'))
+        const pointer = link.split(path.sep).slice(-1)[0]
+        t.equal(pointer, '.pkgswap.package.json', 'package pointed')
+        t.end()
+      })
+    })
+  })
+
+  t.end()
+})
+
 test('pkgswap reconcile', (t) => {
   t.test('reconcile against master', (t) => {
     setup(() => {

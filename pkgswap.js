@@ -33,8 +33,9 @@ function PkgSwap (wd) {
     if (stat.isSymbolicLink()) {
       debug(`${this._package} is a symlink, initialized`)
       this._initialized = true
+    } else {
+      debug(`${this._package} is not a symlink`)
     }
-    debug(`${this._package} is not a symlink`)
   } catch (err) {
     debug(`No package.json found ${wd} or any of it's parent directories`)
     throw err
@@ -95,7 +96,20 @@ PkgSwap.prototype.enable = function (dest, cb) {
 }
 
 PkgSwap.prototype.disable = function (cb) {
-  this.enable(this._master, cb)
+  if (!this._initialized) {
+    debug('not initialized skipping')
+    return cb()
+  }
+
+  const maybeEnableMaster = (isMaster, done) => {
+    debug('master was already enabled', isMaster)
+    isMaster ? done() : this.enable(this._master, done)
+  }
+
+  waterfall([
+    (done) => this._isLinkMaster(done),
+    maybeEnableMaster
+  ], cb)
 }
 
 PkgSwap.prototype.reconcileMaster = function (dest, cb) {
@@ -265,6 +279,7 @@ PkgSwap.prototype._removePackage = function (cb) {
         debug(`${this._package} does not exist, going to symlink`)
         return cb()
       }
+      debug(`${this._package} had an error, failing out`)
       return cb(err)
     }
     debug(`removed ${this._package}, going to symlink`)
@@ -275,9 +290,21 @@ PkgSwap.prototype._removePackage = function (cb) {
 PkgSwap.prototype._makeLink = function (dest, cb) {
   fs.symlink(dest, this._package, (err) => {
     if (err) {
+      debug('could not make link')
       return cb(err)
     }
+    debug(`linked ${dest} to ${this._package}`)
     cb()
+  })
+}
+
+PkgSwap.prototype._isLinkMaster = function (cb) {
+  fs.readlink(this._package, (err, dest) => {
+    if (err) return cb(err)
+    debug(`read link ${this._package} as ${dest}`)
+    const destFn = dest.split(path.sep).slice(-1)[0]
+    const isMaster = destFn === this._master
+    cb(null, isMaster)
   })
 }
 
